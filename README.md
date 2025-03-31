@@ -85,7 +85,7 @@ Each feedback submission undergoes AI processing to extract:
 
 4. Run the server:
    ```sh
-   npm start
+   npm run dev
    ```
    The server should start on `http://localhost:5000`.
 
