@@ -46,28 +46,72 @@ export const getFeedback = async (req: AuthRequest, res: Response, next: NextFun
   }
 };
 
-export const getAdminSummary = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    if (req.user?.role !== "admin") {
-      res.status(403).json({ message: "Forbidden" });
-      return;
-    }
-
-    const totalFeedback = await Feedback.countDocuments();
-    const sentimentBreakdown = { positive: 0, neutral: 0, negative: 0 };
-
-    const feedbackData = await Feedback.find();
-    feedbackData.forEach((fb) => {
-      if (fb.sentiment) {
-        sentimentBreakdown[fb.sentiment as "positive" | "neutral" | "negative"]++;
+export const getAdminSummary = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (req.user?.role !== "admin") {
+        res.status(403).json({ message: "Forbidden" });
+        return;
       }
-    });
-
-    res.json({
-      totalFeedback,
-      sentimentBreakdown,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+  
+      const totalFeedback = await Feedback.countDocuments();
+      const sentimentBreakdown = { positive: 0, neutral: 0, negative: 0 };
+      const feedbackPerModule = { form_builder: 0, ai_scoring: 0, ui_ux: 0, dashboard: 0, other: 0 };
+      const themeCount: Record<string, number> = {};
+      const feedbackOverTime: Record<string, number> = {};
+      let totalConfidence = 0;
+  
+      const feedbackData = await Feedback.find();
+  
+      feedbackData.forEach((fb) => {
+        // Sentiment Breakdown
+        if (fb.sentiment) {
+          sentimentBreakdown[fb.sentiment as "positive" | "neutral" | "negative"]++;
+        }
+  
+        // Feedback Per Module
+        if (fb.moduleTags) {
+            fb.moduleTags.forEach((tag) => {
+              if (Object.keys(feedbackPerModule).includes(tag)) {
+                feedbackPerModule[tag as keyof typeof feedbackPerModule]++;
+              }
+            });
+          }
+          
+  
+        // Common Themes
+        if (fb.themes) {
+          fb.themes.forEach((theme: string) => {
+            themeCount[theme] = (themeCount[theme] || 0) + 1;
+          });
+        }
+  
+        // Average Confidence
+        if (fb.confidence) {
+          totalConfidence += fb.confidence;
+        }
+  
+        // Feedback Over Time (date-wise count)
+        const date = new Date(fb.createdAt).toISOString().split("T")[0]; // Extract YYYY-MM-DD
+        feedbackOverTime[date] = (feedbackOverTime[date] || 0) + 1;
+      });
+  
+      const averageConfidence = totalFeedback > 0 ? totalConfidence / totalFeedback : 0;
+  
+      // Sort common themes by frequency
+      const commonThemes = Object.entries(themeCount)
+        .sort((a, b) => b[1] - a[1])
+        .map(([theme]) => theme)
+        .slice(0, 5); // Get top 5 themes
+  
+      res.json({
+        totalFeedback,
+        sentimentBreakdown,
+        commonThemes,
+        feedbackPerModule,
+        averageConfidence: parseFloat(averageConfidence.toFixed(2)), // Keep 2 decimal places
+        feedbackOverTime,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
