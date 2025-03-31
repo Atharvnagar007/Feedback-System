@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { AuthRequest } from "../types/express";
 import Feedback from "../models/FEEDBACK";
+import { analyzeSentiment } from "../utils/sentimentalAnalysis"; // Import sentiment analysis function
 
 export const submitFeedback = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -9,11 +10,23 @@ export const submitFeedback = async (req: AuthRequest, res: Response, next: Next
       return;
     }
 
-    const { feedbackText } = req.body;
-    const newFeedback = new Feedback({ userId: req.user.id, text: feedbackText });
-    await newFeedback.save();
+    const { userId, feedbackText, rating } = req.body;
+    
+    // Perform AI-based sentiment analysis
+    const { sentiment, themes, moduleTags, confidence } = await analyzeSentiment(feedbackText);
 
-    res.status(201).json({ message: "Feedback submitted" });
+    const newFeedback = new Feedback({
+      userId: req.user.id,
+      feedbackText,
+      rating,
+      sentiment,
+      themes,
+      moduleTags,
+      confidence,
+    });
+
+    await newFeedback.save();
+    res.status(201).json({ success: true, message: "Feedback submitted", feedback: newFeedback });
   } catch (error) {
     next(error);
   }
@@ -42,11 +55,12 @@ export const getAdminSummary = async (req: AuthRequest, res: Response, next: Nex
 
     const totalFeedback = await Feedback.countDocuments();
     const sentimentBreakdown = { positive: 0, neutral: 0, negative: 0 };
-    
-    // Example query (replace with actual logic)
+
     const feedbackData = await Feedback.find();
     feedbackData.forEach((fb) => {
-      sentimentBreakdown[fb.sentiment as "positive" | "neutral" | "negative"]++;
+      if (fb.sentiment) {
+        sentimentBreakdown[fb.sentiment as "positive" | "neutral" | "negative"]++;
+      }
     });
 
     res.json({

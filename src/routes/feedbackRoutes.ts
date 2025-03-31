@@ -1,12 +1,16 @@
-import express from "express";
-import { submitFeedback, getFeedback, getAdminSummary } from "../controllers/feedbackController";
-import { authenticateUser } from "../middleware/authMiddleware";
-import { authorizeRole } from "../middleware/roleMiddleware";
-
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const { submitFeedback, getFeedback, getAdminSummary } = require("../controllers/feedbackController");
+const { authorizeRole } = require("../middleware/roleMiddleware"); // Ensure this exists
 const router = express.Router();
+import { authenticateUser } from "../middleware/authMiddleware";
 
-router.post("/", authenticateUser, submitFeedback);
-router.get("/", authenticateUser, getFeedback);
-router.get("/admin/summary", authenticateUser, authorizeRole("admin"), getAdminSummary);
+// Middleware for verifying JWT
 
-export default router;
+
+// Routes
+router.post("/feedback", authenticateUser, submitFeedback);
+router.get("/feedback", authenticateUser, getFeedback);
+router.get("/admin/feedback-summary", authenticateUser, authorizeRole("admin"), getAdminSummary);
+
+export default router;    

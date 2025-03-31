@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { config } from "../config/env";
+import { decode } from "punycode";
 
 export const authenticateUser = (req: Request, res: Response, next: NextFunction): void => {
   try {
@@ -13,6 +14,7 @@ export const authenticateUser = (req: Request, res: Response, next: NextFunction
 
     const decoded = jwt.verify(token, config.JWT_SECRET) as { id: string; role: string };
     req.user = decoded;
+    console.log(decoded);
     next(); 
   } catch (err) {
     res.status(400).json({ message: "Invalid Token" });
