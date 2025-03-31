@@ -1,21 +1,59 @@
-import { Request, Response } from "express";
-import { analyzeFeedback } from "../services/ai/analyzeFeedback";
+import { Request, Response, NextFunction } from "express";
+import { AuthRequest } from "../types/express";
+import Feedback from "../models/FEEDBACK";
 
-export const analyzeFeedbackController = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const { feedback } = req.body;
-
-        if (!feedback) {
-            res.status(400).json({ error: "Feedback is required" });
-            return;
-        }
-
-        const analysis = await analyzeFeedback(feedback);
-        res.json({ analysis });
-    } catch (error) {
-        console.error("Error analyzing feedback:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+export const submitFeedback = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
     }
+
+    const { feedbackText } = req.body;
+    const newFeedback = new Feedback({ userId: req.user.id, text: feedbackText });
+    await newFeedback.save();
+
+    res.status(201).json({ message: "Feedback submitted" });
+  } catch (error) {
+    next(error);
+  }
 };
 
-// C:\Users\athar\OneDrive\Desktop\product-feedback-backend\src\services\ai\analyzeFeedback.ts
+export const getFeedback = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const feedback = await Feedback.find({ userId: req.user.id });
+    res.json(feedback);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAdminSummary = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (req.user?.role !== "admin") {
+      res.status(403).json({ message: "Forbidden" });
+      return;
+    }
+
+    const totalFeedback = await Feedback.countDocuments();
+    const sentimentBreakdown = { positive: 0, neutral: 0, negative: 0 };
+    
+    // Example query (replace with actual logic)
+    const feedbackData = await Feedback.find();
+    feedbackData.forEach((fb) => {
+      sentimentBreakdown[fb.sentiment as "positive" | "neutral" | "negative"]++;
+    });
+
+    res.json({
+      totalFeedback,
+      sentimentBreakdown,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
